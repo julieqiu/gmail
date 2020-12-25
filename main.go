@@ -20,10 +20,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s.GetLabels()
+	threads, err := s.GetThreads()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, t := range threads {
+		fmt.Println(t.String())
+	}
 }
 
 type Service struct {
+	User string
 	*gmail.Service
 }
 
@@ -45,23 +52,76 @@ func NewGmailService() (_ *Service, err error) {
 	if err != nil {
 		log.Fatalf("Unable to retrieve Gmail client: %v", err)
 	}
-	return &Service{srv}, nil
+	return &Service{Service: srv, User: "me"}, nil
 }
 
-func (s *Service) GetLabels() {
-	user := "me"
-	r, err := s.Users.Labels.List(user).Do()
+type Label struct {
+	*gmail.Label
+}
+
+func (l *Label) String() string {
+	return fmt.Sprintf("- %s\n", l.Name)
+}
+
+func (s *Service) GetLabels() (_ []*Label, err error) {
+	r, err := s.Users.Labels.List(s.User).Do()
 	if err != nil {
-		log.Fatalf("Unable to retrieve labels: %v", err)
+		return nil, err
 	}
 	if len(r.Labels) == 0 {
-		fmt.Println("No labels found.")
-		return
+		return nil, fmt.Errorf("No labels found.")
 	}
-	fmt.Println("Labels:")
+	var labels []*Label
 	for _, l := range r.Labels {
-		fmt.Printf("- %s\n", l.Name)
+		labels = append(labels, &Label{l})
 	}
+	return labels, nil
+}
+
+type Message struct {
+	*gmail.Message
+}
+
+func (m *Message) String() string {
+	return fmt.Sprintf("- %s\n", m.Snippet)
+}
+
+func (s *Service) GetMessages() (_ []*Message, err error) {
+	r, err := s.Users.Messages.List(s.User).Do()
+	if err != nil {
+		return nil, err
+	}
+	if len(r.Messages) == 0 {
+		return nil, fmt.Errorf("No messages found.")
+	}
+	var messages []*Message
+	for _, m := range r.Messages {
+		messages = append(messages, &Message{m})
+	}
+	return messages, nil
+}
+
+type Thread struct {
+	*gmail.Thread
+}
+
+func (t *Thread) String() string {
+	return fmt.Sprintf("- %s\n", t.Snippet)
+}
+
+func (s *Service) GetThreads() (_ []*Thread, err error) {
+	r, err := s.Users.Threads.List(s.User).Do()
+	if err != nil {
+		return nil, err
+	}
+	if len(r.Threads) == 0 {
+		return nil, fmt.Errorf("No messages found.")
+	}
+	var threads []*Thread
+	for _, t := range r.Threads {
+		threads = append(threads, &Thread{t})
+	}
+	return threads, nil
 }
 
 // Retrieve a token, saves the token, then returns the generated client.
